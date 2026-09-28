@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triângulo polar — dualidade na trigonometria esférica</title>
+<style>
+:root{
+  --bg:#F7F8FB; --panel:#FFFFFF; --ink:#1B2233; --ink2:#566077; --rule:#DCE0EA;
+  --orig:#3B4FB8; --pol:#B7791F; --aux:#8A92A6; --ok:#2E7D4F; --lm:#1F8A8A;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#12151C; --panel:#1A1E28; --ink:#E6E9F0; --ink2:#A2AABB; --rule:#2C3242;
+         --orig:#8C9BF2; --pol:#E3AE5A; --aux:#6E768A; --ok:#6BCB93; --lm:#5CC8C8; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  line-height:1.6}
+main{max-width:1040px;margin:0 auto;padding:2rem 1.25rem 3rem}
+h1{font-weight:500;font-size:1.9rem;margin:0 0 .4rem;letter-spacing:-.01em}
+.lead{color:var(--ink2);max-width:68ch;margin:0 0 1.75rem}
+.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:2rem;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:1rem}
+canvas{width:100%;aspect-ratio:1;display:block;touch-action:none;cursor:grab}
+.ui{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;color:var(--ink2)}
+.legend,.opts,.btns{display:flex;gap:1.1rem;flex-wrap:wrap;align-items:center;margin-top:.7rem}
+.sw{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+button{font:inherit;color:var(--ink);background:transparent;border:1px solid var(--rule);
+  border-radius:8px;padding:.45rem .9rem;cursor:pointer}
+button:hover{border-color:var(--ink2)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--orig);outline-offset:2px}
+label{cursor:pointer}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:.5rem .4rem;border-bottom:1px solid var(--rule);text-align:right}
+th{font-weight:400;color:var(--ink2);font-size:13px}
+td:first-child,th:first-child{text-align:left}
+td.rel{font-style:italic}
+td.ok{color:var(--ok);width:1.5rem}
+h2{font-weight:500;font-size:1.15rem;margin:1.75rem 0 .5rem}
+.stats{color:var(--ink2);font-size:15px}
+.stats b{font-weight:500;color:var(--ink)}
+ul{padding-left:1.1rem;margin:.3rem 0;max-width:62ch}
+li{margin:.35rem 0}
+.o{color:var(--orig)} .p{color:var(--pol)}
+</style>
+</head>
+<body>
+<main>
+<h1>O triângulo polar</h1>
+<p class="lead">Cada vértice de <span class="o">A′B′C′</span> é o polo de um lado de <span class="o">ABC</span>, tomado do mesmo lado do vértice oposto. Arraste os vértices <span class="o">A, B, C</span> para deformar o triângulo e arraste o fundo para girar a esfera. A tabela confere que os lados de um triângulo são os suplementos dos ângulos do outro.</p>
+
+<div class="grid">
+  <div class="stage">
+    <canvas id="cv" aria-label="Esfera com o triângulo ABC e seu triângulo polar"></canvas>
+    <div class="legend ui">
+      <span><span class="sw" style="background:var(--orig)"></span>ABC original</span>
+      <span><span class="sw" style="background:var(--pol)"></span>A′B′C′ polar</span>
+      <span><span class="sw" style="background:var(--lm)"></span>Prolongamento LM</span>
+    </div>
+    <div class="opts ui">
+      <label><input type="checkbox" id="gc"> Círculos máximos de ABC</label>
+      <label><input type="checkbox" id="pl"> Arcos de 90° até os polos</label>
+      <label><input type="checkbox" id="lm"> Prolongamento de BC até L e M</label>
+    </div>
+    <div class="btns ui">
+      <button id="rs">Restaurar</button>
+      <button id="rn">Triângulo aleatório</button>
+    </div>
+  </div>
+
+  <div>
+    <table>
+      <thead><tr><th>Relação</th><th>Polar</th><th>180° − original</th><th></th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+    <div class="stats" id="sm" style="margin-top:1rem"></div>
+
+    <h2>O que experimentar</h2>
+    <ul>
+      <li>Aproxime os três vértices: <span class="o">ABC</span> fica quase plano e o polar fica enorme.</li>
+      <li>Ative os arcos de 90°: <span class="p">A′</span> está sempre a 90° de <span class="o">B</span> e de <span class="o">C</span>.</li>
+      <li>Junte dois vértices: um lado tende a 0° e o ângulo correspondente do polar tende a 180°.</li>
+      <li>Ative o prolongamento: <i>LC</i> e <i>BM</i> medem sempre 90°, e o arco <i>LM</i> é igual ao ângulo <span class="p">A′</span>, logo <span class="p">A′</span> = 180° − <i>a</i>.</li>
+      <li>A soma dos ângulos de <span class="o">ABC</span> é sempre maior que 180°.</li>
+    </ul>
+  </div>
+</div>
+</main>
+
+<script>
+(() => {
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let W = 400, R = 170, cx = 200, cy = 200;
+
+const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cr  = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const nm  = a => { const l = Math.hypot(...a); return a.map(x => x/l); };
+const sub = (a,b) => a.map((x,i) => x-b[i]);
+const sc  = (a,s) => a.map(x => x*s);
+const ac  = x => Math.acos(Math.max(-1, Math.min(1, x)));
+const deg = x => x*180/Math.PI;
+const sph = (lat,lon) => { lat*=Math.PI/180; lon*=Math.PI/180;
+  return [Math.cos(lat)*Math.sin(lon), Math.sin(lat), Math.cos(lat)*Math.cos(lon)]; };
+
+let P, yaw, pitch;
+function reset(){ P = [sph(50,0), sph(5,-35), sph(0,30)]; yaw = -0.35; pitch = 0.35; }
+reset();
+
+function rot(v){ let [x,y,z] = v;
+  let c = Math.cos(yaw), s = Math.sin(yaw); [x,z] = [c*x+s*z, -s*x+c*z];
+  c = Math.cos(pitch); s = Math.sin(pitch); [y,z] = [c*y-s*z, s*y+c*z];
+  return [x,y,z]; }
+function unrot(v){ let [x,y,z] = v;
+  let c = Math.cos(pitch), s = Math.sin(pitch); [y,z] = [c*y+s*z, -s*y+c*z];
+  c = Math.cos(yaw); s = Math.sin(yaw); [x,z] = [c*x-s*z, s*x+c*z];
+  return [x,y,z]; }
+const scr = v => { const r = rot(v); return [cx+R*r[0], cy-R*r[1], r[2]]; };
+
+// Polo do lado oposto a cada vértice, escolhido do mesmo lado do vértice
+function polar(){ return [0,1,2].map(i => {
+  let p = nm(cr(P[(i+1)%3], P[(i+2)%3]));
+  return dot(p, P[i]) < 0 ? sc(p,-1) : p; }); }
+// Lados: ângulo central entre os dois outros vértices
+const sides = T => [0,1,2].map(i => ac(dot(T[(i+1)%3], T[(i+2)%3])));
+// Ângulos: ângulo entre as tangentes aos dois arcos no vértice
+const angles = T => [0,1,2].map(i => {
+  const u = T[i], v = T[(i+1)%3], w = T[(i+2)%3];
+  const t1 = nm(sub(v, sc(u, dot(u,v)))), t2 = nm(sub(w, sc(u, dot(u,w))));
+  return ac(dot(t1,t2)); });
+
+const col = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function arc(u, v, color, w, full, dash){
+  const om = ac(dot(u,v));
+  const n = full ? 160 : Math.max(10, Math.ceil(om*50));
+  const perp = nm(sub(v, sc(u, dot(u,v))));
+  const pts = [];
+  for (let i=0;i<=n;i++){
+    const t = full ? i/n*2*Math.PI : i/n*om;
+    pts.push(scr(u.map((x,k) => x*Math.cos(t)+perp[k]*Math.sin(t))));
+  }
+  ctx.strokeStyle = color;
+  for (let i=0;i<n;i++){
+    const a = pts[i], b = pts[i+1], back = a[2]<0 && b[2]<0;
+    ctx.globalAlpha = back ? 0.28 : 1;
+    ctx.lineWidth = back ? 1 : w;
+    ctx.setLineDash(back || full || dash ? [4,4] : []);
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.setLineDash([]);
+}
+
+function point(v, color, label){
+  const s = scr(v), back = s[2] < 0;
+  ctx.globalAlpha = back ? 0.4 : 1;
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(s[0], s[1], back ? 4 : 6.5, 0, 2*Math.PI); ctx.fill();
+  ctx.fillStyle = col('--ink');
+  ctx.font = 'italic 17px "Iowan Old Style", Palatino, Georgia, serif';
+  const d = nm([s[0]-cx, s[1]-cy, 0.001]);
+  ctx.fillText(label, s[0]+d[0]*17-6, s[1]+d[1]*17+6);
+  ctx.globalAlpha = 1;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,W);
+  ctx.strokeStyle = col('--rule'); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2*Math.PI); ctx.stroke();
+
+  const Q = polar(), O = col('--orig'), Pl = col('--pol'), X = col('--aux');
+  if (document.getElementById('gc').checked)
+    for (let i=0;i<3;i++) arc(P[i], P[(i+1)%3], X, 1, true);
+  if (document.getElementById('pl').checked)
+    for (let i=0;i<3;i++){ arc(P[(i+1)%3], Q[i], X, 1.2, false); arc(P[(i+2)%3], Q[i], X, 1.2, false); }
+  const showLM = document.getElementById('lm').checked;
+  // L e M: pontos a 90° de C e de B ao longo do círculo máximo BC
+  const L = nm(sub(P[1], sc(P[2], dot(P[1],P[2])))), M = nm(sub(P[2], sc(P[1], dot(P[1],P[2]))));
+  const LMc = col('--lm');
+  if (showLM){
+    arc(Q[0], L, X, 1.2, false, true); arc(Q[0], M, X, 1.2, false, true);
+    arc(L, P[1], LMc, 2.2, false, true); arc(P[2], M, LMc, 2.2, false, true);
+  }
+  for (let i=0;i<3;i++){ arc(Q[i], Q[(i+1)%3], Pl, 2.6, false); arc(P[i], P[(i+1)%3], O, 2.6, false); }
+  if (showLM){ point(L, LMc, 'L'); point(M, LMc, 'M'); }
+  ['A','B','C'].forEach((l,i) => { point(Q[i], Pl, l+'′'); point(P[i], O, l); });
+
+  const s = sides(P), a = angles(P), s2 = sides(Q), a2 = angles(Q);
+  const rows = [
+    ["A′ = 180° − a", a2[0], s[0]], ["B′ = 180° − b", a2[1], s[1]], ["C′ = 180° − c", a2[2], s[2]],
+    ["a′ = 180° − A", s2[0], a[0]], ["b′ = 180° − B", s2[1], a[1]], ["c′ = 180° − C", s2[2], a[2]]];
+  document.getElementById('tb').innerHTML = rows.map(r => {
+    const x = deg(r[1]), y = 180 - deg(r[2]);
+    return `<tr><td class="rel">${r[0]}</td><td>${x.toFixed(1)}°</td><td>${y.toFixed(1)}°</td><td class="ok">${Math.abs(x-y)<0.2?'✓':''}</td></tr>`;
+  }).join('');
+  const f = v => deg(v).toFixed(1)+'°';
+  document.getElementById('sm').innerHTML =
+    `Lados de ABC: <b>a = ${f(s[0])}</b>, <b>b = ${f(s[1])}</b>, <b>c = ${f(s[2])}</b><br>` +
+    `Ângulos de ABC: <b>A = ${f(a[0])}</b>, <b>B = ${f(a[1])}</b>, <b>C = ${f(a[2])}</b><br>` +
+    `Soma dos ângulos: <b>${deg(a[0]+a[1]+a[2]).toFixed(1)}°</b> (excesso esférico ${(deg(a[0]+a[1]+a[2])-180).toFixed(1)}°)` +
+    (showLM ? `<br><br>Prolongamento de BC:<br>` +
+      `<b>LC = ${f(ac(dot(L,P[2])))}</b>, <b>BM = ${f(ac(dot(P[1],M)))}</b><br>` +
+      `LB + 2·BC + CM = 180°, logo <b>LM = ${f(ac(dot(L,M)))}</b> = 180° − a<br>` +
+      `A′ é polo de BC, então <b>LM = A′ = ${f(a2[0])}</b>` : '');
+}
+
+function resize(){
+  const dpr = window.devicePixelRatio || 1, size = cv.clientWidth;
+  W = size; R = size*0.42; cx = cy = size/2;
+  cv.width = size*dpr; cv.height = size*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+
+let drag = -1, last = null;
+const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; };
+cv.addEventListener('pointerdown', e => {
+  const [x,y] = pos(e); drag = -2; let best = 18;
+  P.forEach((v,i) => { const s = scr(v);
+    if (s[2] > 0){ const d = Math.hypot(s[0]-x, s[1]-y); if (d < best){ best = d; drag = i; } } });
+  last = [x,y]; cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing';
+});
+cv.addEventListener('pointermove', e => {
+  if (drag === -1) return;
+  const [x,y] = pos(e);
+  if (drag >= 0){
+    let X = (x-cx)/R, Y = -(y-cy)/R; const r2 = X*X+Y*Y;
+    if (r2 > 0.98){ const k = Math.sqrt(0.98/r2); X*=k; Y*=k; }
+    const v = unrot([X, Y, Math.sqrt(1-X*X-Y*Y)]);
+    const o = P.filter((_,i) => i !== drag);
+    if (o.every(q => dot(q,v) < 0.995) && Math.abs(dot(cr(o[0],o[1]), v)) > 0.02) P[drag] = v;
+  } else {
+    yaw += (x-last[0])*0.01;
+    pitch = Math.max(-1.5, Math.min(1.5, pitch+(y-last[1])*0.01));
+  }
+  last = [x,y]; draw();
+});
+const up = () => { drag = -1; cv.style.cursor = 'grab'; };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+
+document.getElementById('gc').onchange = draw;
+document.getElementById('pl').onchange = draw;
+document.getElementById('lm').onchange = draw;
+document.getElementById('rs').onclick = () => { reset(); draw(); };
+document.getElementById('rn').onclick = () => {
+  const c = nm([Math.random()-.5, Math.random()-.5, Math.random()-.5]);
+  const t1 = nm(cr(c, [0.3,1,0.2])), t2 = cr(c, t1), rr = 0.4+Math.random()*0.6;
+  P = [0,1,2].map(i => { const th = i*2.1+Math.random()*0.8;
+    return nm(c.map((x,k) => x+rr*(Math.cos(th)*t1[k]+Math.sin(th)*t2[k]))); });
+  draw();
+};
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+window.addEventListener('resize', resize);
+resize();
+})();
+</script>
+</body>
+</html>
