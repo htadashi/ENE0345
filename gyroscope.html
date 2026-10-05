@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Velocidade angular no corpo — quadricóptero em curva</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF1F4; --surface:#FFFFFF; --ink:#16233A; --muted:#5B6B80; --rule:#CDD5DF;
+  --omega:#C98300; --ax:#C23B32; --ay:#2F8A57; --az:#2D5FA8; --floor:#DDE3EA; --obst:#9AA7B6;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121822; --surface:#1A2230; --ink:#E4EAF2; --muted:#8E9BAD; --rule:#2C3646;
+    --omega:#F2B230; --ax:#E5675E; --ay:#5CC188; --az:#6C9BE8; --floor:#18202C; --obst:#4A5668;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121822; --surface:#1A2230; --ink:#E4EAF2; --muted:#8E9BAD; --rule:#2C3646;
+  --omega:#F2B230; --ax:#E5675E; --ay:#5CC188; --az:#6C9BE8; --floor:#18202C; --obst:#4A5668;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.5;
+  font-variant-numeric:tabular-nums}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 20px 60px}
+h1{font-family:"Source Serif 4",Georgia,serif;font-weight:600;font-size:clamp(1.6rem,3.2vw,2.35rem);
+  line-height:1.15;margin:0 0 6px;letter-spacing:-.01em;max-width:24ch}
+.lede{color:var(--muted);margin:0 0 22px;max-width:70ch}
+h2{font-family:"Source Serif 4",Georgia,serif;font-weight:600;font-size:1.3rem;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.stage{position:relative;background:var(--surface);border:1px solid var(--rule);border-radius:10px;overflow:hidden;
+  height:min(64vh,620px);min-height:360px;touch-action:none;cursor:grab}
+.stage:active{cursor:grabbing}
+.stage canvas{display:block;width:100%;height:100%}
+.lbl{position:absolute;transform:translate(-50%,-50%);font-size:13px;font-weight:600;pointer-events:none;white-space:nowrap;
+  text-shadow:0 0 3px var(--surface),0 0 3px var(--surface)}
+.hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);pointer-events:none}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:16px 16px 12px}
+.panel section+section{border-top:1px solid var(--rule);margin-top:14px;padding-top:14px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0}
+.row label{font-size:14px}
+.row output{font-weight:500;min-width:6ch;text-align:right}
+input[type=range]{width:100%;accent-color:var(--az)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;font-size:14px;font-weight:500;padding:7px 14px;border-radius:6px;border:1px solid var(--rule);
+  background:var(--bg);color:var(--ink);cursor:pointer}
+button.primary{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--omega);outline-offset:2px}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;margin:6px 0}
+.check input{accent-color:var(--az);width:16px;height:16px}
+.read{display:grid;grid-template-columns:auto repeat(3,1fr);gap:2px 10px;font-size:14px;align-items:baseline}
+.read .h{color:var(--muted);font-size:12px;text-align:right}
+.read .k{color:var(--muted);font-size:13px}
+.read .v{text-align:right;font-weight:500}
+.cx{color:var(--ax)}.cy{color:var(--ay)}.cz{color:var(--az)}.co{color:var(--omega)}
+.mat{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 12px;font-size:14px;text-align:right;
+  border-left:2px solid var(--muted);border-right:2px solid var(--muted);padding:4px 10px;border-radius:4px}
+.small{font-size:13px;color:var(--muted);margin:6px 0 0}
+.plotbox{margin-top:18px;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:16px}
+.plotbox canvas{width:100%;height:230px;display:block}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:14px;margin-top:6px}
+.legend span::before{content:"";display:inline-block;width:14px;height:3px;border-radius:2px;background:currentColor;
+  vertical-align:middle;margin-right:6px}
+.deriv{margin-top:18px;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:18px 22px}
+.deriv ol{padding-left:1.3em;margin:0;max-width:78ch;font-family:"Source Serif 4",Georgia,serif;font-size:1.05rem;line-height:1.65}
+.deriv li{margin:0 0 12px}
+.deriv .m{overflow-x:auto;padding:4px 0}
+.result{margin-top:10px;padding:12px 16px;border-left:4px solid var(--omega);background:var(--bg);border-radius:0 8px 8px 0;
+  font-family:"Source Serif 4",Georgia,serif;font-size:1.08rem;overflow-x:auto}
+@media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>O que o giroscópio do drone mede numa curva inclinada</h1>
+  <p class="lede">Orientação medida pela captura de movimento: <em>R(t) = R<sub>z</sub>(πt)·R<sub>x</sub>(π/6)</em>.
+  No referencial inercial o drone gira apenas em torno do eixo Z vertical. Como o corpo está inclinado 30°, o sensor embarcado
+  vê essa mesma rotação dividida entre os seus eixos y e z.</p>
+
+  <div class="grid">
+    <div class="stage" id="stage">
+      <div class="hint">Arraste para girar a vista · role para aproximar</div>
+    </div>
+
+    <aside class="panel">
+      <section>
+        <div class="btns">
+          <button class="primary" id="play">Pausar</button>
+          <button id="reset">Voltar a t = 0</button>
+          <button id="defaults">Valores da questão</button>
+        </div>
+        <div class="row"><label for="tsl">Tempo t</label><output id="tout">0,00 s</output></div>
+        <input type="range" id="tsl" min="0" max="4" step="0.01" value="0" aria-label="Tempo">
+        <div class="row"><label for="spd">Velocidade da animação</label><output id="spdout">0,5×</output></div>
+        <input type="range" id="spd" min="0.1" max="1" step="0.05" value="0.5">
+      </section>
+
+      <section>
+        <div class="row"><label for="om">Taxa de guinada Ω</label><output id="omout">π rad/s</output></div>
+        <input type="range" id="om" min="0" max="24" step="1" value="12" aria-label="Taxa de guinada">
+        <div class="row"><label for="th">Inclinação θ</label><output id="thout">30°</output></div>
+        <input type="range" id="th" min="0" max="60" step="1" value="30" aria-label="Inclinação">
+        <label class="check"><input type="checkbox" id="orbit" checked> Mostrar trajetória circular e obstáculo</label>
+        <label class="check"><input type="checkbox" id="cone" checked> Mostrar o cone varrido por z<sub>B</sub></label>
+        <label class="check"><input type="checkbox" id="noise"> Adicionar ruído ao giroscópio</label>
+      </section>
+
+      <section>
+        <div class="read" aria-live="off">
+          <div></div><div class="h">x</div><div class="h">y</div><div class="h">z</div>
+          <div class="k">ω inercial</div><div class="v" id="s0"></div><div class="v" id="s1"></div><div class="v" id="s2"></div>
+          <div class="k co">ᴮω analítico</div><div class="v cx" id="a0"></div><div class="v cy" id="a1"></div><div class="v cz" id="a2"></div>
+          <div class="k">ᴮω numérico</div><div class="v" id="n0"></div><div class="v" id="n1"></div><div class="v" id="n2"></div>
+        </div>
+        <p class="small">“Numérico” deriva R(t) por diferenças finitas e calcula Rᵀ·Ṙ. |ω| = <span id="mag"></span> rad/s.</p>
+      </section>
+
+      <section>
+        <div class="row" style="margin-top:0"><span style="font-size:14px">R(t) atual</span></div>
+        <div class="mat" id="mat"></div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="plotbox">
+    <h2>Leitura do giroscópio nos últimos 4 s</h2>
+    <canvas id="plot"></canvas>
+    <div class="legend">
+      <span class="cx">p (eixo x<sub>B</sub>)</span>
+      <span class="cy">q (eixo y<sub>B</sub>)</span>
+      <span class="cz">r (eixo z<sub>B</sub>)</span>
+    </div>
+    <p class="small">As três componentes são constantes: embora o drone gire continuamente, o eixo de rotação mantém sempre o mesmo ângulo com o corpo.</p>
+  </div>
+
+  <div class="deriv">
+    <h2>Resolução</h2>
+    <ol>
+      <li>A velocidade angular no referencial do corpo vem de
+        <div class="m">\[ [{}^{B}\boldsymbol\omega]_\times = R^{\mathsf T}\dot R . \]</div></li>
+      <li>Só o primeiro fator depende do tempo, e \( \tfrac{d}{dt}R_z(\pi t) = \pi\,R_z(\pi t)\,[\hat e_z]_\times \):
+        <div class="m">\[ \dot R = \pi\,R_z(\pi t)\,[\hat e_z]_\times\,R_x(\pi/6). \]</div></li>
+      <li>Como \( R_z^{\mathsf T}R_z = I \) e \( R^{\mathsf T}[\mathbf a]_\times R = [R^{\mathsf T}\mathbf a]_\times \):
+        <div class="m">\[ R^{\mathsf T}\dot R = \pi\,R_x^{\mathsf T}[\hat e_z]_\times R_x = \pi\,\big[R_x^{\mathsf T}(\pi/6)\,\hat e_z\big]_\times . \]</div></li>
+      <li>A terceira linha de \(R_x(\pi/6)\) é \( (0,\ \sin\tfrac{\pi}{6},\ \cos\tfrac{\pi}{6}) = (0,\ \tfrac12,\ \tfrac{\sqrt3}{2}) \), logo
+        <div class="result">\[ {}^{B}\boldsymbol\omega = \begin{bmatrix}0\\ \dfrac{\pi}{2}\\ \dfrac{\sqrt3\,\pi}{2}\end{bmatrix}\ \text{rad/s} \approx \begin{bmatrix}0\\ 1{,}571\\ 2{,}721\end{bmatrix}\ \text{rad/s}, \qquad \|\boldsymbol\omega\| = \pi\ \text{rad/s}. \]</div></li>
+    </ol>
+    <p class="small" style="max-width:78ch">No referencial inercial, \( {}^{S}\boldsymbol\omega = (0,0,\pi) \) aponta para cima. O giroscópio,
+    preso ao corpo inclinado de 30° em torno de x<sub>B</sub>, decompõe esse vetor nos seus próprios eixos: nada em x<sub>B</sub> (o eixo de
+    inclinação é perpendicular a Z), π·sen 30° em y<sub>B</sub> e π·cos 30° em z<sub>B</sub>. No caso geral, \( {}^{B}\boldsymbol\omega = \Omega\,(0,\ \sin\theta,\ \cos\theta) \).</p>
+  </div>
+</div>
+
+<script>
+window.MathJax = { tex:{inlineMath:[['\\(','\\)']]}, svg:{fontCache:'global'} };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js" async></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+// ---------- state ----------
+const S = { t:0, playing:true, Omega:Math.PI, theta:Math.PI/6, orbit:true, cone:true, noise:false, speed:0.5 };
+const ORBIT_R = 3.0, HEIGHT = 1.6;
+
+// ---------- math ----------
+const Rz = a => { const c=Math.cos(a), s=Math.sin(a); return [[c,-s,0],[s,c,0],[0,0,1]]; };
+const Rx = a => { const c=Math.cos(a), s=Math.sin(a); return [[1,0,0],[0,c,-s],[0,s,c]]; };
+const mul = (A,B) => A.map((r,i)=>[0,1,2].map(j=>A[i][0]*B[0][j]+A[i][1]*B[1][j]+A[i][2]*B[2][j]));
+const T = A => [[A[0][0],A[1][0],A[2][0]],[A[0][1],A[1][1],A[2][1]],[A[0][2],A[1][2],A[2][2]]];
+const Rof = t => mul(Rz(S.Omega*t), Rx(S.theta));
+function omegaBodyNumeric(t){
+  const h=1e-4, R=Rof(t), Rp=Rof(t+h), Rm=Rof(t-h);
+  const Rd = Rp.map((r,i)=>r.map((v,j)=>(v-Rm[i][j])/(2*h)));
+  const W = mul(T(R), Rd);
+  return [(W[2][1]-W[1][2])/2, (W[0][2]-W[2][0])/2, (W[1][0]-W[0][1])/2];
+}
+const omegaBody = () => [0, S.Omega*Math.sin(S.theta), S.Omega*Math.cos(S.theta)];
+const posOf = t => S.orbit ? [-ORBIT_R*Math.sin(S.Omega*t), ORBIT_R*Math.cos(S.Omega*t), HEIGHT] : [0,0,HEIGHT];
+const fmt = (v,d=3) => (Math.abs(v)<5e-4?0:v).toFixed(d).replace('.',',').replace(/^-0,000$/,'0,000');
+
+// ---------- colors ----------
+let C = {};
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  ['bg','surface','ink','muted','rule','omega','ax','ay','az','floor','obst'].forEach(k=>C[k]=cs.getPropertyValue('--'+k).trim());
+}
+readColors();
+
+// ---------- three setup ----------
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42,1,0.05,200);
+const world = new THREE.Group(); world.rotation.x = -Math.PI/2; scene.add(world); // z-up math frame
+scene.add(new THREE.AmbientLight(0xffffff,0.65));
+const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(5,10,6); scene.add(sun);
+
+const mats = {};
+function M(key, opts={}){ const m = new THREE.MeshStandardMaterial(Object.assign({roughness:.6,metalness:.1},opts)); m.userData.key=key; (mats[key]=mats[key]||[]).push(m); return m; }
+function L(key, opts={}){ const m = new THREE.LineBasicMaterial(opts); m.userData.key=key; (mats[key]=mats[key]||[]).push(m); return m; }
+function LD(key, opts={}){ const m = new THREE.LineDashedMaterial(Object.assign({dashSize:.12,gapSize:.08},opts)); m.userData.key=key; (mats[key]=mats[key]||[]).push(m); return m; }
+function applyColors(){
+  scene.background = new THREE.Color(C.surface);
+  for(const k in mats) mats[k].forEach(m=>m.color.set(C[k]));
+}
+
+// floor grid
+const floor = new THREE.Mesh(new THREE.CircleGeometry(6,64), M('floor',{roughness:1}));
+world.add(floor);
+const gridPts=[]; for(let i=-5;i<=5;i++){ const e=Math.sqrt(Math.max(0,36-i*i)); gridPts.push(i,-e,0.002, i,e,0.002, -e,i,0.002, e,i,0.002); }
+const gridGeo=new THREE.BufferGeometry(); gridGeo.setAttribute('position',new THREE.Float32BufferAttribute(gridPts,3));
+world.add(new THREE.LineSegments(gridGeo, L('rule')));
+
+// obstacle + path
+const obstacle = new THREE.Group();
+const pillar = new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,3.2,40), M('obst'));
+pillar.rotation.x = Math.PI/2; pillar.position.z = 1.6; obstacle.add(pillar);
+const pathPts=[]; for(let i=0;i<=128;i++){const a=i/128*Math.PI*2; pathPts.push(new THREE.Vector3(ORBIT_R*Math.cos(a),ORBIT_R*Math.sin(a),HEIGHT));}
+const path = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pathPts), LD('muted'));
+path.computeLineDistances(); obstacle.add(path);
+world.add(obstacle);
+
+// arrows helper (math frame)
+function makeArrow(key, radius){
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,1,12), M(key,{roughness:.4}));
+  const head = new THREE.Mesh(new THREE.ConeGeometry(radius*2.6,radius*7,16), M(key,{roughness:.4}));
+  g.add(shaft); g.add(head); g.userData={shaft,head,radius};
+  return g;
+}
+const up = new THREE.Vector3(0,1,0);
+function setArrow(a, origin, dir, len){
+  const {shaft,head,radius} = a.userData;
+  const hl = Math.min(radius*7, len*0.5);
+  a.visible = len>1e-4;
+  if(!a.visible) return;
+  a.position.copy(origin);
+  a.quaternion.setFromUnitVectors(up, dir.clone().normalize());
+  shaft.scale.set(1, Math.max(len-hl,1e-4), 1); shaft.position.y=(len-hl)/2;
+  head.scale.set(hl/(radius*7)*1, hl/(radius*7), hl/(radius*7)*1); head.position.y=len-hl/2;
+}
+
+// inertial frame
+const IO = new THREE.Vector3(-4.3,-4.3,0);
+const inertial = { X:makeArrow('ax',.025), Y:makeArrow('ay',.025), Z:makeArrow('az',.025) };
+Object.values(inertial).forEach(a=>world.add(a));
+setArrow(inertial.X, IO, new THREE.Vector3(1,0,0), 1.1);
+setArrow(inertial.Y, IO, new THREE.Vector3(0,1,0), 1.1);
+setArrow(inertial.Z, IO, new THREE.Vector3(0,0,1), 1.1);
+
+// drone
+const drone = new THREE.Group(); world.add(drone);
+const body = new THREE.Mesh(new THREE.BoxGeometry(.46,.46,.12), M('ink',{roughness:.5})); drone.add(body);
+const nose = new THREE.Mesh(new THREE.BoxGeometry(.12,.2,.08), M('ax')); nose.position.set(.27,0,0); drone.add(nose);
+const blades=[];
+[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([sx,sy],i)=>{
+  const d = new THREE.Vector3(sx,sy,0).normalize();
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(.72,.05,.04), M('muted'));
+  arm.position.copy(d.clone().multiplyScalar(.36)); arm.rotation.z = Math.atan2(sy,sx); drone.add(arm);
+  const hub = d.clone().multiplyScalar(.7);
+  const guard = new THREE.Mesh(new THREE.TorusGeometry(.22,.012,8,40), M('muted')); guard.position.copy(hub).setZ(.05); drone.add(guard);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(.4,.04,.01), M('ink')); blade.position.copy(hub).setZ(.06);
+  blade.userData.dir = i%2?1:-1; drone.add(blade); blades.push(blade);
+});
+// body axes (thin lines) inside drone
+const bodyAxes = {};
+[['x',[1,0,0],'ax'],['y',[0,1,0],'ay'],['z',[0,0,1],'az']].forEach(([n,v,k])=>{
+  const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(...v).multiplyScalar(1.35)]);
+  const l=new THREE.Line(g,L(k)); drone.add(l); bodyAxes[n]=l;
+});
+const bodyAxArrows = { x:makeArrow('ax',.012), y:makeArrow('ay',.012), z:makeArrow('az',.012) };
+Object.values(bodyAxArrows).forEach(a=>drone.add(a));
+setArrow(bodyAxArrows.x,new THREE.Vector3(),new THREE.Vector3(1,0,0),1.35);
+setArrow(bodyAxArrows.y,new THREE.Vector3(),new THREE.Vector3(0,1,0),1.35);
+setArrow(bodyAxArrows.z,new THREE.Vector3(),new THREE.Vector3(0,0,1),1.35);
+
+// omega vector (world) and its body components (in drone frame)
+const W_SCALE = 0.55;
+const omegaArrow = makeArrow('omega',.035); world.add(omegaArrow);
+const compQ = makeArrow('omega',.02), compR = makeArrow('omega',.02);
+compQ.children.forEach(m=>{m.material=m.material.clone(); m.material.transparent=true; m.material.opacity=.55; mats.omega.push(m.material);});
+compR.children.forEach(m=>{m.material=m.material.clone(); m.material.transparent=true; m.material.opacity=.55; mats.omega.push(m.material);});
+drone.add(compQ); drone.add(compR);
+const dashGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()]);
+const dash = new THREE.Line(dashGeo, LD('omega',{dashSize:.06,gapSize:.05})); drone.add(dash);
+
+// cone swept by body z (world, apex at drone)
+let cone=null;
+function rebuildCone(){
+  if(cone){ world.remove(cone); cone.geometry.dispose(); }
+  const Lz=1.35, rad=Lz*Math.sin(S.theta)||0.0001, h=Lz*Math.cos(S.theta)||0.0001;
+  const geo=new THREE.ConeGeometry(rad,h,48,1,true); geo.rotateX(-Math.PI/2); geo.translate(0,0,h/2);
+  const m=new THREE.MeshBasicMaterial({transparent:true,opacity:.13,side:THREE.DoubleSide,depthWrite:false}); m.userData.key='az'; mats.az.push(m);
+  m.color.set(C.az);
+  cone=new THREE.Mesh(geo,m); world.add(cone);
+  const rimPts=[]; for(let i=0;i<=64;i++){const a=i/64*Math.PI*2; rimPts.push(new THREE.Vector3(rad*Math.cos(a),rad*Math.sin(a),h));}
+  const rim=new THREE.Line(new THREE.BufferGeometry().setFromPoints(rimPts), L('az',{transparent:true,opacity:.5})); cone.add(rim);
+  rim.material.color.set(C.az);
+}
+rebuildCone();
+applyColors();
+
+// ---------- labels ----------
+const labels = [];
+function addLabel(html, cls, getPos){ const d=document.createElement('div'); d.className='lbl '+cls; d.innerHTML=html; stage.appendChild(d); labels.push({d,getPos}); }
+const tmp = new THREE.Vector3();
+const localToWorld = (obj,v)=>obj.localToWorld(v.clone());
+addLabel('X','cx',()=>world.localToWorld(IO.clone().add(new THREE.Vector3(1.3,0,0))));
+addLabel('Y','cy',()=>world.localToWorld(IO.clone().add(new THREE.Vector3(0,1.3,0))));
+addLabel('Z','cz',()=>world.localToWorld(IO.clone().add(new THREE.Vector3(0,0,1.3))));
+addLabel('x<sub>B</sub>','cx',()=>localToWorld(drone,new THREE.Vector3(1.55,0,0)));
+addLabel('y<sub>B</sub>','cy',()=>localToWorld(drone,new THREE.Vector3(0,1.55,0)));
+addLabel('z<sub>B</sub>','cz',()=>localToWorld(drone,new THREE.Vector3(0,0,1.55)));
+addLabel('ω','co',()=>{ const p=posOf(S.t); return world.localToWorld(new THREE.Vector3(p[0],p[1],p[2]+S.Omega*W_SCALE+.22)); });
+addLabel('q','co',()=>localToWorld(drone,new THREE.Vector3(0,omegaBody()[1]*W_SCALE+.1,-.12)));
+addLabel('r','co',()=>localToWorld(drone,new THREE.Vector3(-.12,0,omegaBody()[2]*W_SCALE*.55)));
+
+// ---------- camera orbit ----------
+const cam = { az: -0.75, el: 0.42, dist: 11.5, target: new THREE.Vector3(0,0,1.2) };
+function placeCamera(){
+  const ce=Math.cos(cam.el);
+  const m = new THREE.Vector3(cam.target.x+cam.dist*ce*Math.cos(cam.az), cam.target.y+cam.dist*ce*Math.sin(cam.az), cam.target.z+cam.dist*Math.sin(cam.el));
+  camera.position.copy(world.localToWorld(m));
+  camera.lookAt(world.localToWorld(cam.target.clone()));
+}
+let drag=null;
+stage.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY}; stage.setPointerCapture(e.pointerId);});
+stage.addEventListener('pointermove',e=>{ if(!drag) return;
+  cam.az -= (e.clientX-drag.x)*0.008; cam.el = Math.max(-0.1,Math.min(1.45,cam.el+(e.clientY-drag.y)*0.006));
+  drag={x:e.clientX,y:e.clientY}; });
+stage.addEventListener('pointerup',()=>drag=null);
+stage.addEventListener('wheel',e=>{e.preventDefault(); cam.dist=Math.max(4,Math.min(25,cam.dist*(1+e.deltaY*0.001)));},{passive:false});
+
+function resize(){
+  const w=stage.clientWidth,h=stage.clientHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  resizePlot();
+}
+window.addEventListener('resize',resize);
+
+// ---------- UI ----------
+const $=id=>document.getElementById(id);
+const piLabel = k => k===0?'0': k===12?'π': (k%12===0? (k/12)+'π' : (()=>{ let n=k,d=12; const g=(a,b)=>b?g(b,a%b):a; const q=g(n,d); n/=q; d/=q; return (n===1?'':n)+'π/'+d; })());
+$('play').onclick=()=>{S.playing=!S.playing; $('play').textContent=S.playing?'Pausar':'Continuar';};
+$('reset').onclick=()=>{S.t=0;};
+$('defaults').onclick=()=>{ $('om').value=12; $('th').value=30; $('om').oninput(); $('th').oninput(); };
+$('tsl').oninput=e=>{ S.t=parseFloat(e.target.value); if(S.playing) $('play').click(); };
+$('spd').oninput=e=>{ S.speed=parseFloat(e.target.value); $('spdout').textContent=S.speed.toFixed(2).replace(/0$/,'').replace('.',',')+'×'; };
+$('om').oninput=()=>{ const k=parseInt($('om').value); S.Omega=k*Math.PI/12; $('omout').textContent=piLabel(k)+' rad/s'; };
+$('th').oninput=()=>{ S.theta=parseInt($('th').value)*Math.PI/180; $('thout').textContent=$('th').value+'°'; rebuildCone(); };
+$('orbit').onchange=e=>{ S.orbit=e.target.checked; };
+$('cone').onchange=e=>{ S.cone=e.target.checked; };
+$('noise').onchange=e=>{ S.noise=e.target.checked; };
+$('spd').oninput({target:$('spd')});
+
+// ---------- plot ----------
+const pc=$('plot'), pctx=pc.getContext('2d');
+function resizePlot(){ const r=pc.getBoundingClientRect(), dpr=Math.min(window.devicePixelRatio,2); pc.width=r.width*dpr; pc.height=r.height*dpr; pctx.setTransform(dpr,0,0,dpr,0,0); }
+function hashNoise(i,k){ const x=Math.sin(i*12.9898+k*78.233)*43758.5453; const y=Math.sin(i*39.3468+k*11.135)*24634.6345;
+  const u1=(x-Math.floor(x))||1e-6, u2=y-Math.floor(y); return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2); }
+function drawPlot(){
+  const w=pc.clientWidth,h=pc.clientHeight, padL=62,padR=12,padT=10,padB=26;
+  pctx.clearRect(0,0,w,h);
+  const yMax=Math.max(Math.PI*1.15, S.Omega*1.15), yMin=-0.6;
+  const X=tt=>padL+(tt-(S.t-4))/4*(w-padL-padR), Y=v=>padT+(yMax-v)/(yMax-yMin)*(h-padT-padB);
+  pctx.font='12px "IBM Plex Sans", system-ui, sans-serif';
+  // grid
+  pctx.strokeStyle=C.rule; pctx.fillStyle=C.muted; pctx.lineWidth=1;
+  const ticks=[[0,'0'],[Math.PI/2,'π/2'],[Math.PI,'π']]; if(yMax>2*Math.PI*0.9) ticks.push([2*Math.PI,'2π']);
+  ticks.forEach(([v,l])=>{ if(v>yMax) return; pctx.beginPath(); pctx.moveTo(padL,Y(v)); pctx.lineTo(w-padR,Y(v)); pctx.stroke(); pctx.textAlign='right'; pctx.fillText(l,padL-8,Y(v)+4); });
+  pctx.textAlign='center';
+  for(let s=Math.ceil(S.t-4); s<=S.t; s++){ const x=X(s); pctx.beginPath(); pctx.moveTo(x,padT); pctx.lineTo(x,h-padB); pctx.stroke(); pctx.fillText(s+' s',x,h-8); }
+  pctx.save(); pctx.translate(14,(padT+h-padB)/2); pctx.rotate(-Math.PI/2); pctx.fillText('rad/s',0,0); pctx.restore();
+  const wb=omegaBody(), cols=[C.ax,C.ay,C.az], dt=0.01;
+  for(let k=0;k<3;k++){
+    pctx.strokeStyle=cols[k]; pctx.lineWidth=2; pctx.beginPath();
+    const i0=Math.ceil((S.t-4)/dt), i1=Math.floor(S.t/dt);
+    for(let i=i0;i<=i1;i++){ const tt=i*dt; const v=wb[k]+(S.noise?0.06*hashNoise(i,k):0);
+      const x=X(tt), y=Y(v); if(i===i0) pctx.moveTo(x,y); else pctx.lineTo(x,y); }
+    pctx.stroke();
+    pctx.fillStyle=cols[k]; pctx.textAlign='left';
+  }
+}
+
+// ---------- readouts ----------
+function updateReadouts(){
+  const a=omegaBody(), n=omegaBodyNumeric(S.t), R=Rof(S.t);
+  ['0','1','2'].forEach(i=>{ $('a'+i).textContent=fmt(a[i]); $('n'+i).textContent=fmt(n[i]); $('s'+i).textContent=fmt(i==='2'?S.Omega:0); });
+  $('mag').textContent=fmt(Math.hypot(...a));
+  $('mat').innerHTML=R.flat().map(v=>'<span>'+fmt(v)+'</span>').join('');
+  $('tout').textContent=fmt(S.t,2)+' s';
+  if(document.activeElement!==$('tsl')) $('tsl').value=S.t;
+}
+
+// ---------- loop ----------
+const m4=new THREE.Matrix4();
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(S.playing){ S.t+=dt*S.speed; if(S.t>4) S.t-=4; }
+  const R=Rof(S.t), p=posOf(S.t);
+  m4.set(R[0][0],R[0][1],R[0][2],0, R[1][0],R[1][1],R[1][2],0, R[2][0],R[2][1],R[2][2],0, 0,0,0,1);
+  drone.quaternion.setFromRotationMatrix(m4); drone.position.set(...p);
+  blades.forEach(b=>b.rotation.z+=b.userData.dir*dt*40);
+  obstacle.visible=S.orbit;
+  const pv=new THREE.Vector3(...p);
+  setArrow(omegaArrow, pv, new THREE.Vector3(0,0,1), S.Omega*W_SCALE);
+  const wb=omegaBody();
+  setArrow(compQ, new THREE.Vector3(), new THREE.Vector3(0,1,0), wb[1]*W_SCALE);
+  setArrow(compR, new THREE.Vector3(), new THREE.Vector3(0,0,1), wb[2]*W_SCALE);
+  const dp=dashGeo.attributes.position;
+  dp.setXYZ(0,0,wb[1]*W_SCALE,0); dp.setXYZ(1,0,wb[1]*W_SCALE,wb[2]*W_SCALE); dp.setXYZ(2,0,0,wb[2]*W_SCALE); dp.needsUpdate=true; dash.computeLineDistances();
+  if(cone){ cone.position.copy(pv); cone.visible=S.cone && S.theta>0.001; }
+  placeCamera();
+  renderer.render(scene,camera);
+  scene.updateMatrixWorld();
+  const w=stage.clientWidth,h=stage.clientHeight;
+  labels.forEach(({d,getPos})=>{ const v=getPos().project(camera);
+    const vis = v.z<1 && !(d.classList.contains('co') && S.Omega===0);
+    d.style.display=vis?'block':'none'; d.style.left=((v.x+1)/2*w)+'px'; d.style.top=((1-v.y)/2*h)+'px'; });
+  updateReadouts(); drawPlot();
+  requestAnimationFrame(frame);
+}
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+(mq.addEventListener?mq.addEventListener('change',()=>{readColors();applyColors();}):mq.addListener(()=>{readColors();applyColors();}));
+resize(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
